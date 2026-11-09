@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 
 import numpy as np
 import ray
@@ -10,7 +11,9 @@ from disgrpo.buffer import SharedMemoryRingBuffer
 def build_batch(outputs, config, reward_fn):
     records = []
     for group_id, request in enumerate(outputs):
-        prompt_ids = list(request.prompt_token_ids or [])[-config.max_prompt_length:]
+        prompt_ids = list(request.prompt_token_ids or [])
+        if not prompt_ids or len(prompt_ids) > config.max_prompt_length:
+            raise ValueError("Prompt token count is outside MAX_PROMPT_LENGTH")
         for completion in request.outputs:
             response_ids = list(completion.token_ids[:config.max_completion_length])
             if not response_ids:
@@ -21,6 +24,10 @@ def build_batch(outputs, config, reward_fn):
                 float(step[token_id].logprob)
                 for step, token_id in zip(completion.logprobs, response_ids)
             ]
+            if len(old_logprobs) != len(response_ids):
+                raise RuntimeError("vLLM returned incomplete token log probabilities")
+            if len(prompt_ids) + len(response_ids) > config.max_model_len:
+                raise ValueError("Prompt and completion exceed MAX_MODEL_LEN")
             reward = float(reward_fn(request.prompt, completion.text))
             records.append((prompt_ids, response_ids, old_logprobs, reward, group_id))
 
@@ -61,14 +68,10 @@ def build_batch(outputs, config, reward_fn):
 class VLLMRolloutWorker:
     def __init__(self, config, buffer_name):
         from vllm import LLM, SamplingParams
-        from disgrpo.policy import load_policy
 
-        del load_policy
         self.config = config
         self.buffer = SharedMemoryRingBuffer.attach(buffer_name)
         module_name, function_name = config.reward_module.split(":", 1)
-        import importlib
-
         self.reward_fn = getattr(importlib.import_module(module_name), function_name)
         self.engine = LLM(
             model=config.model,
