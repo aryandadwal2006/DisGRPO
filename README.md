@@ -11,5 +11,5 @@ JAX distributed synchronizes gradients.
 NCCL handles GPU collectives.
 Docker builds the runtime image.
 Kubernetes starts the worker job.
-Set `MODEL`, `PROMPTS`, and `REWARD_MODULE` before launch.
+Set MODEL, PROMPTS, POLICY_ADAPTER, and REWARD_MODULE before launch.
 Run `python -m disgrpo.train`.
