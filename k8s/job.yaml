@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: disgrpo
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: disgrpo:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MODEL
+              value: model-id
+            - name: PROMPTS
+              value: /data/prompts.txt
+            - name: POLICY_ADAPTER
+              value: package.module:load_policy
+            - name: REWARD_MODULE
+              value: package.rewards:score
+            - name: NUM_GENERATIONS
+              value: "4"
+            - name: PROMPTS_PER_STEP
+              value: "8"
+            - name: TRAIN_STEPS
+              value: "100"
+          resources:
+            limits:
+              nvidia.com/gpu: "2"
+          volumeMounts:
+            - name: shared-memory
+              mountPath: /dev/shm
+            - name: prompts
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+        - name: prompts
+          persistentVolumeClaim:
+            claimName: prompts

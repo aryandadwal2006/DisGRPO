@@ -1,0 +1,5 @@
+numpy>=1.26
+ray[default]>=2.40
+vllm>=0.8
+jax[cuda12]>=0.5
+optax>=0.2
